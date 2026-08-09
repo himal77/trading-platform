@@ -36,6 +36,33 @@ services:
       timeout: 3s
       retries: 10
 
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: tp-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@local.dev
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  redis-insight:
+    image: redis/redisinsight:latest
+    container_name: tp-redis-insight
+    ports:
+      - "5540:5540"
+    volumes:
+      - redis-insight-data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+
   # Kafka in KRaft mode — no Zookeeper needed
   kafka:
     image: confluentinc/cp-kafka:7.8.0
@@ -199,5 +226,7 @@ services:
 
 volumes:
   postgres-data:
+  pgadmin-data:
   redis-data:
+  redis-insight-data:
   kafka-data:
