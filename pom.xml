@@ -35,7 +35,9 @@
 
         <spring-cloud.version>2024.0.0</spring-cloud.version>
         <jjwt.version>0.12.6</jjwt.version>
-        <testcontainers.version>1.20.4</testcontainers.version>
+        <!-- 2.x is required for Docker 29+, which rejects the API 1.32 that 1.x negotiates.
+             Note 2.x renamed artifacts: postgresql -> testcontainers-postgresql. -->
+        <testcontainers.version>2.0.2</testcontainers.version>
         <springdoc.version>2.7.0</springdoc.version>
     </properties>
 
