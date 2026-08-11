@@ -33,31 +33,43 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
 
-# Resilience stack for outbound calls: Bulkhead -> Circuit Breaker -> Retry -> call -> Timeout
+wallet:
+  base-url: ${WALLET_SERVICE_URL:http://localhost:8082}
+  connect-timeout: 2s
+  read-timeout: 3s
+
+# Bulkhead -> Circuit Breaker -> Retry -> call -> (read timeout on the RestClient)
 resilience4j:
+  bulkhead:
+    instances:
+      wallet:
+        # Caps concurrent calls so a hanging wallet cannot exhaust this service's threads.
+        maxConcurrentCalls: 20
+        maxWaitDuration: 0
   circuitbreaker:
     instances:
-      paymentProvider:
+      wallet:
         failureRateThreshold: 50
         waitDurationInOpenState: 30s
         permittedNumberOfCallsInHalfOpenState: 3
         slidingWindowSize: 20
+        # A definite "no" is a valid business answer, not a fault — counting it as a failure
+        # would trip the breaker during normal operation.
+        ignoreExceptions:
+          - com.tradingplatform.trade.wallet.InsufficientFundsException
+          - com.tradingplatform.trade.wallet.AlreadyAppliedException
   retry:
     instances:
-      paymentProvider:
+      wallet:
         maxAttempts: 3
         waitDuration: 100ms
         enableExponentialBackoff: true
         exponentialBackoffMultiplier: 2
+        # Jitter, so concurrent retries do not resynchronise into a thundering herd.
         enableRandomizedWait: true
-  bulkhead:
-    instances:
-      paymentProvider:
-        maxConcurrentCalls: 20
-  timelimiter:
-    instances:
-      paymentProvider:
-        timeoutDuration: 3s
+        # Only an unknown outcome is worth retrying; the other two are already decisive.
+        retryExceptions:
+          - com.tradingplatform.trade.wallet.WalletUnavailableException
 
 management:
   endpoints:
