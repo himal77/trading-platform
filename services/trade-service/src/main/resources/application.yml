@@ -1,0 +1,85 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: trade-service
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/trade_db}
+    username: ${DB_USER:trading}
+    password: ${DB_PASSWORD:trading}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BROKERS:localhost:9092}
+    consumer:
+      group-id: trade-service
+      auto-offset-reset: earliest
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+wallet:
+  base-url: ${WALLET_SERVICE_URL:http://localhost:8082}
+  connect-timeout: 2s
+  read-timeout: 3s
+
+# Bulkhead -> Circuit Breaker -> Retry -> call -> (read timeout on the RestClient)
+resilience4j:
+  bulkhead:
+    instances:
+      wallet:
+        # Caps concurrent calls so a hanging wallet cannot exhaust this service's threads.
+        maxConcurrentCalls: 20
+        maxWaitDuration: 0
+  circuitbreaker:
+    instances:
+      wallet:
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+        permittedNumberOfCallsInHalfOpenState: 3
+        slidingWindowSize: 20
+        # A definite "no" is a valid business answer, not a fault — counting it as a failure
+        # would trip the breaker during normal operation.
+        ignoreExceptions:
+          - com.tradingplatform.trade.wallet.InsufficientFundsException
+          - com.tradingplatform.trade.wallet.AlreadyAppliedException
+  retry:
+    instances:
+      wallet:
+        maxAttempts: 3
+        waitDuration: 100ms
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+        # Jitter, so concurrent retries do not resynchronise into a thundering herd.
+        enableRandomizedWait: true
+        # Only an unknown outcome is worth retrying; the other two are already decisive.
+        retryExceptions:
+          - com.tradingplatform.trade.wallet.WalletUnavailableException
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.tradingplatform: DEBUG

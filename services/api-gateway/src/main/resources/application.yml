@@ -1,0 +1,58 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+  cloud:
+    gateway:
+      routes:
+        - id: auth-service
+          uri: ${AUTH_SERVICE_URL:http://localhost:8081}
+          predicates:
+            - Path=/auth/**
+
+        - id: wallet-service
+          uri: ${WALLET_SERVICE_URL:http://localhost:8082}
+          predicates:
+            - Path=/wallets/**
+
+        - id: trade-service
+          uri: ${TRADE_SERVICE_URL:http://localhost:8083}
+          predicates:
+            - Path=/trades/**
+
+        - id: order-service
+          uri: ${ORDER_SERVICE_URL:http://localhost:8084}
+          predicates:
+            - Path=/orders/**
+
+jwt:
+  secret: ${JWT_SECRET:dev-only-secret-change-me-min-256-bits-long-for-hs256-algorithm}
+
+# Endpoints reachable without a JWT
+gateway:
+  public-paths:
+    - /auth/register
+    - /auth/login
+    - /auth/refresh
+    - /actuator/health
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.tradingplatform: DEBUG
